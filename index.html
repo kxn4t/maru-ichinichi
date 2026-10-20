@@ -190,6 +190,11 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
 .grip:focus-visible{outline:3px solid var(--accent); outline-offset:1px}
 .row.lifting{position:relative; z-index:5; background:var(--surface); box-shadow:0 0 0 2px var(--accent), 0 16px 32px -12px rgba(10,15,40,.45)}
 .row.lifting .grip{cursor:grabbing}
+.moved{background:var(--surface); border:2px solid var(--accent); border-radius:16px; padding:14px 16px; margin:0 0 18px}
+.moved[hidden]{display:none}
+.moved p{margin:0 0 10px; font-size:.92rem}
+.moved .actions{margin-top:0}
+.moved .btn.primary{flex:0 1 auto; min-width:0}
 .theme-switch{margin-left:auto; align-self:center}
 .theme-switch button{width:34px; height:30px; padding:0; display:inline-flex; align-items:center; justify-content:center}
 .theme-switch svg{width:18px; height:18px; display:block}
@@ -198,6 +203,13 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
 </head>
 <body>
 <div class="wrap">
+  <div class="moved" id="movedNotice" hidden>
+    <p><b>まるいちにちは新しいページに移りました。</b>今後は新しいページを使ってください。共有リンクを開くだけで予定が表示されるようになっています。</p>
+    <div class="actions">
+      <a class="btn small primary" id="movedLink" href="https://kxn4t.github.io/maru-ichinichi/" target="_blank" rel="noopener noreferrer">新しいページを開く</a>
+      <a class="btn small" id="movedWithData" href="https://kxn4t.github.io/maru-ichinichi/" target="_blank" rel="noopener noreferrer">今の予定ごと開く</a>
+    </div>
+  </div>
   <header class="top">
     <h1>まるいちにち</h1>
     <p>一日の過ごし方を、時計みたいな円グラフに。</p>
@@ -392,12 +404,12 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   }
   function extractCode(text){ const t = String(text || "").trim(); const m = /[#&?]d=([A-Za-z0-9_-]+)/.exec(t); return m ? m[1] : t; }
   function readHash(){ try{ const m = /[#&]d=([A-Za-z0-9_-]+)/.exec(location.hash); return m ? decodeState(m[1]) : null; }catch(_){ return null; } }
-  // Inside claude.ai the page runs in a temporary frame whose address can't be shared, and the
-  // artifact link doesn't pass #d= through, so links there must be pasted in. Self-hosted, links open directly.
-  const ARTIFACT_URL = "https://claude.ai/artifact/6TiNbgBryRV8RYPFzWVCyo";
+  // Inside claude.ai the page runs in a temporary frame, so share links point to the public site,
+  // which reads #d= directly. Self-hosted, links use the page's own address.
+  const SITE_URL = "https://kxn4t.github.io/maru-ichinichi/";
   const FRAMED = (() => { try{ return window.top !== window; }catch(_){ return true; } })();
   function shareLink(){
-    const base = (!FRAMED && /^https?:$/.test(location.protocol)) ? location.href.split("#")[0] : ARTIFACT_URL;
+    const base = (!FRAMED && /^https?:$/.test(location.protocol)) ? location.href.split("#")[0] : SITE_URL;
     return base + "#d=" + encodeState();
   }
 
@@ -866,8 +878,8 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   const xBtn = document.getElementById("xBtn");
   function updateXLink(){
     const title = state.title.trim() || "わたしの一日";
-    const params = new URLSearchParams({text: `「${title}」を円グラフにしました #まるいちにち`});
-    const link = shareLink(); if(link) params.set("url", link);
+    // put the link on its own line: X's url= parameter would join it with a space
+    const params = new URLSearchParams({text: `「${title}」を円グラフにしました #まるいちにち\n${shareLink()}`});
     xBtn.href = "https://x.com/intent/post?" + params.toString();
   }
 
@@ -1263,7 +1275,13 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
     if(darkMQ.addEventListener) darkMQ.addEventListener("change", onMQ); else if(darkMQ.addListener) darkMQ.addListener(onMQ);
   }
   applyTheme();
-  document.getElementById("frameNote").hidden = !FRAMED;
+  document.getElementById("frameNote").hidden = true;
+  if(FRAMED){
+    // claude.ai copy: point people to the GitHub Pages version, optionally carrying the current day over
+    document.getElementById("movedNotice").hidden = false;
+    const withData = document.getElementById("movedWithData");
+    withData.addEventListener("click", () => { withData.href = SITE_URL + "#d=" + encodeState(); });
+  }
   window.addEventListener("hashchange", () => {
     const s = readHash(); if(!s) return;
     state = s; viewingShared = true; refreshAll(); toast("共有された予定を読み込みました");
