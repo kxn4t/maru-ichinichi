@@ -190,6 +190,9 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
 .grip:focus-visible{outline:3px solid var(--accent); outline-offset:1px}
 .row.lifting{position:relative; z-index:5; background:var(--surface); box-shadow:0 0 0 2px var(--accent), 0 16px 32px -12px rgba(10,15,40,.45)}
 .row.lifting .grip{cursor:grabbing}
+.theme-switch{margin-left:auto; align-self:center}
+.theme-switch button{width:34px; height:30px; padding:0; display:inline-flex; align-items:center; justify-content:center}
+.theme-switch svg{width:18px; height:18px; display:block}
 .sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
 </style>
 </head>
@@ -198,6 +201,11 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   <header class="top">
     <h1>まるいちにち</h1>
     <p>一日の過ごし方を、時計みたいな円グラフに。</p>
+    <div class="seg theme-switch" role="group" aria-label="画面の表示">
+      <button type="button" data-theme-set="auto" aria-pressed="true" aria-label="自動（端末の設定に合わせる）" title="自動"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></button>
+      <button type="button" data-theme-set="light" aria-pressed="false" aria-label="ライト" title="ライト"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.5M12 19v2.5M2.5 12h2.5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></svg></button>
+      <button type="button" data-theme-set="dark" aria-pressed="false" aria-label="ダーク" title="ダーク"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z" fill="currentColor"/></svg></button>
+    </div>
   </header>
 
   <div class="layout">
@@ -209,7 +217,8 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
         <button class="btn" id="copyImgBtn" type="button">画像をコピー</button>
         <span class="seg-label" id="cardThemeLabel">カード</span>
         <div class="seg" role="group" aria-labelledby="cardThemeLabel">
-          <button type="button" data-card="day" aria-pressed="true">昼</button>
+          <button type="button" data-card="auto" aria-pressed="true">自動</button>
+          <button type="button" data-card="day" aria-pressed="false">昼</button>
           <button type="button" data-card="night" aria-pressed="false">夜</button>
         </div>
       </div>
@@ -323,11 +332,17 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
     night:{bg:"#1A1F2E", ink:"#EEF0F6", sub:"#9AA2B6", ring:"#252B3D", ringNight:"#151927", gap:"#242A3B", tick:"#4A536A"}
   };
   const SLICE_INK = "#1D2334";
+  const THEME_KEY = "maruichinichi:theme";
+  let pageTheme = "auto";
+  try{ const t = localStorage.getItem(THEME_KEY); if(t === "light" || t === "dark") pageTheme = t; }catch(_){}
+  const darkMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  function isDark(){ return pageTheme === "dark" || (pageTheme === "auto" && !!(darkMQ && darkMQ.matches)); }
+  function effectiveCard(){ return state.card === "auto" ? (isDark() ? "night" : "day") : state.card; }
   const FONT = '"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif';
 
   let uid = 1;
   const newId = () => "e" + (uid++);
-  const freshState = () => ({title:"", subtitle:"", card:"day", entries: SAMPLE.map(e => ({...e, id:newId()}))});
+  const freshState = () => ({title:"", subtitle:"", card:"auto", entries: SAMPLE.map(e => ({...e, id:newId()}))});
   let viewingShared = false;
   let state = load() || freshState();
   const fromHash = readHash();
@@ -344,7 +359,8 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
       s.entries = s.entries.filter(e => Number.isFinite(e.start) && Number.isFinite(e.end))
         .map(e => ({label:String(e.label||""), start:clampMin(e.start), end:clampMin(e.end), color:String(e.color||PALETTE[0])}));
       s.title = String(s.title||""); s.subtitle = String(s.subtitle||"");
-      s.card = s.card === "night" ? "night" : "day";
+      s.card = ["auto", "day", "night"].includes(s.card) ? s.card : "auto";
+      if(s.v !== 2 && s.card === "day") s.card = "auto";   // 「昼」が初期値だった頃の保存データ
       return s;
     }catch(_){ return null; }
   }
@@ -359,7 +375,7 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
     const bin = atob(s); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
   }
   function encodeState(){
-    const o = {v:1, t:state.title, s:state.subtitle, c:state.card === "night" ? 1 : 0,
+    const o = {v:1, t:state.title, s:state.subtitle, c:state.card === "night" ? 1 : state.card === "auto" ? 2 : 0,
       e: sorted().map(e => { const i = PALETTE.indexOf(e.color); return [e.label, e.start, e.end, i >= 0 ? i : e.color]; })};
     return b64e(JSON.stringify(o));
   }
@@ -371,7 +387,7 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
         id:newId(), label:String(a[0] ?? "").slice(0, 24), start:clampMin(a[1]), end:clampMin(a[2]),
         color: (Number.isInteger(a[3]) && PALETTE[a[3]]) ? PALETTE[a[3]] : (/^#[0-9a-fA-F]{6}$/.test(String(a[3])) ? String(a[3]) : PALETTE[0])
       }));
-      return {title:String(o.t ?? "").slice(0, 40), subtitle:String(o.s ?? "").slice(0, 60), card:o.c === 1 ? "night" : "day", entries};
+      return {title:String(o.t ?? "").slice(0, 40), subtitle:String(o.s ?? "").slice(0, 60), card:o.c === 1 ? "night" : o.c === 2 ? "auto" : "day", entries};
     }catch(_){ return null; }
   }
   function extractCode(text){ const t = String(text || "").trim(); const m = /[#&?]d=([A-Za-z0-9_-]+)/.exec(t); return m ? m[1] : t; }
@@ -391,7 +407,7 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try{
-        const out = {title:state.title, subtitle:state.subtitle, card:state.card,
+        const out = {v:2, title:state.title, subtitle:state.subtitle, card:state.card,
           entries: state.entries.map(({label,start,end,color}) => ({label,start,end,color}))};
         localStorage.setItem(STORE_KEY, JSON.stringify(out));
       }catch(_){}
@@ -405,6 +421,7 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   function hmm(m){ m = clampMin(m); return Math.floor(m/60) + ":" + String(m%60).padStart(2,"0"); }
   function parseTime(v){ const p = /^(\d{1,2}):(\d{2})/.exec(v||""); return p ? clampMin(+p[1]*60 + +p[2]) : null; }
   function durText(d){ const h = Math.floor(d/60), m = d%60; return (h ? h + "時間" : "") + (m ? m + "分" : (h ? "" : "0分")); }
+  function durShort(d){ const h = Math.floor(d/60), m = d%60; return h && m ? `${h}h${m}m` : h ? `${h}h` : `${m}m`; }
   function sorted(){ return [...state.entries].sort((a,b) => a.start - b.start || a.end - b.end); }
   function overlaps(a, b){
     const as = a.start, ae = a.start + dur(a);
@@ -449,7 +466,7 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   }
 
   function draw(exporting){
-    const th = CARD_THEMES[state.card];
+    const th = CARD_THEMES[effectiveCard()];
     const items = sorted();
     const H = layoutHeight(items.length);
     if(canvas.height !== H) canvas.height = H;
@@ -524,16 +541,26 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
       const time = hmm(e.start) + "-" + hmm(e.start + d);
       const px = cx + Math.cos(phi)*rM, py = cy + Math.sin(phi)*rM;
       let done = false;
-      for(const s of [36, 32, 28]){
-        ctx.font = `700 ${s}px ${FONT}`; const lw = ctx.measureText(label).width;
-        ctx.font = `700 ${Math.round(s*.72)}px ${FONT}`; const tw = ctx.measureText(time).width;
-        const h = s * 2.05;
-        if(fits(Math.max(lw,tw), h)){
+      const ds = durShort(d);
+      // try with the length after the time first, then without it
+      for(const withDur of [true, false]){
+        for(const s of [36, 32, 28]){
+          const ts = Math.round(s*.72);
+          ctx.font = `700 ${s}px ${FONT}`; const lw = ctx.measureText(label).width;
+          ctx.font = `700 ${ts}px ${FONT}`; const tw = ctx.measureText(time).width;
+          const gap = ts * .45, dw = withDur ? ctx.measureText(ds).width + gap : 0;
+          if(!fits(Math.max(lw, tw + dw), s * 2.05)) continue;
           ctx.fillStyle = SLICE_INK;
           ctx.font = `700 ${s}px ${FONT}`; ctx.fillText(label, px, py - s*0.12);
-          ctx.globalAlpha = .72; ctx.font = `700 ${Math.round(s*.72)}px ${FONT}`; ctx.fillText(time, px, py + s*0.88);
-          ctx.globalAlpha = 1; done = true; break;
+          ctx.font = `700 ${ts}px ${FONT}`;
+          const left = px - (tw + dw)/2;
+          ctx.textAlign = "left";
+          ctx.globalAlpha = .72; ctx.fillText(time, left, py + s*0.88);
+          if(withDur) ctx.fillText(ds, left + tw + gap, py + s*0.88);
+          ctx.globalAlpha = 1; ctx.textAlign = "center";
+          done = true; break;
         }
+        if(done) break;
       }
       if(!done){
         for(const s of [30, 26]){
@@ -586,17 +613,21 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
     // legend
     if(items.length){
       const top = 1240, colW = (W - 120 - 40) / 2, rowH = 62;
+      ctx.font = `700 24px ${FONT}`;
+      const durCol = Math.max(...items.map(e => ctx.measureText(durShort(dur(e))).width));
       items.forEach((e, i) => {
         const col = i < Math.ceil(items.length/2) ? 0 : 1;
         const row = col === 0 ? i : i - Math.ceil(items.length/2);
         const x = 60 + col*(colW + 40), y = top + row*rowH;
         ctx.beginPath(); ctx.arc(x + 13, y + 18, 13, 0, Math.PI*2); ctx.fillStyle = e.color; ctx.fill();
+        ctx.font = `700 24px ${FONT}`; ctx.fillStyle = th.ink; ctx.globalAlpha = .6; ctx.textAlign = "right";
+        ctx.fillText(durShort(dur(e)), x + colW, y + 28); ctx.globalAlpha = 1;
         const tStr = hmm(e.start) + "–" + hmm(e.start + dur(e));
-        ctx.font = `500 26px ${FONT}`; ctx.fillStyle = th.sub; ctx.textAlign = "right";
+        ctx.font = `500 26px ${FONT}`; ctx.fillStyle = th.sub;
         const tw = ctx.measureText(tStr).width;
-        ctx.fillText(tStr, x + colW, y + 28);
+        ctx.fillText(tStr, x + colW - durCol - 16, y + 28);
         ctx.font = `700 30px ${FONT}`; ctx.fillStyle = th.ink; ctx.textAlign = "left";
-        ctx.fillText(fitText(ctx, e.label.trim() || "（無題）", colW - tw - 64), x + 40, y + 29);
+        ctx.fillText(fitText(ctx, e.label.trim() || "（無題）", colW - tw - durCol - 16 - 60), x + 40, y + 29);
       });
     }
 
@@ -609,7 +640,7 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   const loadedChars = new Set();
   function ensureFonts(){
     if(!document.fonts || !document.fonts.load) return;
-    const text = [state.title, state.subtitle, "わたしの一日（無題）まるいちにち24h0123456789:-–…", ...state.entries.map(e => e.label)].join("");
+    const text = [state.title, state.subtitle, "わたしの一日（無題）まるいちにち24hm0123456789:-–…", ...state.entries.map(e => e.label)].join("");
     const fresh = [...new Set(text)].filter(c => !loadedChars.has(c));
     if(!fresh.length) return;
     fresh.forEach(c => loadedChars.add(c));
@@ -1215,6 +1246,23 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   window.addEventListener("scroll", () => closeQuick(), {passive:true});
 
   // ---------- start ----------
+  const themeBtns = document.querySelectorAll("[data-theme-set]");
+  function applyTheme(){
+    if(pageTheme === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", pageTheme);
+    themeBtns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeSet === pageTheme)));
+    scheduleDraw();
+  }
+  themeBtns.forEach(b => b.addEventListener("click", () => {
+    pageTheme = b.dataset.themeSet;
+    try{ localStorage.setItem(THEME_KEY, pageTheme); }catch(_){}
+    applyTheme();
+  }));
+  if(darkMQ){
+    const onMQ = () => { if(pageTheme === "auto") scheduleDraw(); };
+    if(darkMQ.addEventListener) darkMQ.addEventListener("change", onMQ); else if(darkMQ.addListener) darkMQ.addListener(onMQ);
+  }
+  applyTheme();
   document.getElementById("frameNote").hidden = !FRAMED;
   window.addEventListener("hashchange", () => {
     const s = readHash(); if(!s) return;
