@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>まるいちにち — 一日の円グラフメーカー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EAEEF4; --surface:#FFFFFF; --ink:#1D2334; --muted:#646C80; --line:#D6DCE6;
+  --accent:#3B4CCA; --accent-ink:#FFFFFF; --warn:#C2410C; --field:#F4F6FA;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131722; --surface:#1D2230; --ink:#E9ECF3; --muted:#9AA2B6; --line:#2D3446;
+    --accent:#8D9BFF; --accent-ink:#11141E; --warn:#FB923C; --field:#252B3B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131722; --surface:#1D2230; --ink:#E9ECF3; --muted:#9AA2B6; --line:#2D3446;
+  --accent:#8D9BFF; --accent-ink:#11141E; --warn:#FB923C; --field:#252B3B;
+  color-scheme: dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif;
+  font-weight:500; line-height:1.6; -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:1120px; margin:0 auto; padding:20px 16px 48px}
+header.top{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin:4px 2px 18px}
+header.top h1{font-size:1.35rem; margin:0; font-weight:700; letter-spacing:.02em; white-space:nowrap}
+header.top p{margin:0; color:var(--muted); font-size:.85rem}
+
+.layout{display:grid; gap:20px}
+@media (min-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start}
+  .preview{position:sticky; top:calc(16px + env(safe-area-inset-top,0px))}
+}
+.preview canvas{
+  display:block; width:100%; height:auto; border-radius:20px;
+  box-shadow:0 1px 0 var(--line), 0 12px 32px -18px rgba(20,28,60,.35);
+}
+.actions{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; align-items:center}
+.btn{
+  font:inherit; font-weight:700; border-radius:999px; border:2px solid var(--ink);
+  background:transparent; color:var(--ink); padding:.7em 1.3em; cursor:pointer; font-size:.95rem;
+}
+.btn.primary{background:var(--ink); color:var(--bg); flex:1 1 auto; min-width:180px}
+.btn:focus-visible,.chip:focus-visible,.swatch:focus-visible,.dot:focus-visible,.icon:focus-visible,.seg button:focus-visible,input:focus-visible{
+  outline:3px solid var(--accent); outline-offset:2px;
+}
+.seg{display:inline-flex; border:2px solid var(--line); border-radius:999px; padding:3px; gap:2px}
+.seg button{font:inherit; font-size:.85rem; border:0; background:transparent; color:var(--muted); padding:.35em .9em; border-radius:999px; cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink); color:var(--bg)}
+.seg-label{font-size:.85rem; color:var(--muted)}
+
+.panel{background:var(--surface); border-radius:20px; padding:18px 16px}
+.field{display:block; margin-bottom:12px}
+.field span{display:block; font-size:.82rem; color:var(--muted); margin-bottom:4px}
+input[type=text],input[type=time]{
+  font:inherit; color:var(--ink); background:var(--field); border:1.5px solid transparent;
+  border-radius:12px; padding:.55em .75em; width:100%; min-width:0; font-size:1rem;
+}
+input[type=text]:hover,input[type=time]:hover{border-color:var(--line)}
+.title-input{font-size:1.15rem; font-weight:700}
+
+.section-head{display:flex; justify-content:space-between; align-items:baseline; margin:18px 2px 10px; gap:10px; flex-wrap:wrap}
+.section-head h2{font-size:1rem; margin:0}
+.summary{font-size:.82rem; color:var(--muted)}
+.summary b{color:var(--ink)}
+
+.rows{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+.row{
+  display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; grid-template-areas:"grip dot label del" "grip dot time time";
+  gap:6px 10px; align-items:center; padding:10px; border-radius:16px; background:var(--field);
+}
+.row .dot{grid-area:dot; align-self:start; margin-top:4px}
+.row .label{grid-area:label}
+.row .del{grid-area:del}
+.row .time{grid-area:time; display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.row input{background:var(--surface)}
+.row .time input{width:auto; flex:1 1 0; min-width:0; max-width:11em; padding:.4em .6em}
+.row .dur{font-size:.82rem; color:var(--muted); margin-left:auto; white-space:nowrap}
+.row .warn{font-size:.78rem; color:var(--warn); width:100%}
+.dot{
+  width:34px; height:34px; border-radius:50%; border:3px solid var(--surface);
+  box-shadow:0 0 0 1.5px var(--line); cursor:pointer; padding:0;
+}
+.icon{
+  width:34px; height:34px; border-radius:50%; border:0; background:transparent; color:var(--muted);
+  font-size:1.25rem; line-height:1; cursor:pointer;
+}
+.icon:hover{background:var(--surface); color:var(--ink)}
+
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px}
+.chip{
+  font:inherit; font-size:.88rem; border:1.5px dashed var(--line); background:transparent; color:var(--ink);
+  padding:.4em .9em; border-radius:999px; cursor:pointer; display:inline-flex; align-items:center; gap:.4em;
+}
+.chip i{width:10px; height:10px; border-radius:50%; display:inline-block}
+.chip:hover{border-style:solid}
+.chip.add{border-style:solid; background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.empty{color:var(--muted); font-size:.9rem; padding:14px 6px; text-align:center}
+.foot-actions{display:flex; justify-content:flex-end; margin-top:16px}
+.linkish{font:inherit; font-size:.82rem; background:none; border:0; color:var(--muted); text-decoration:underline; cursor:pointer; padding:.3em}
+
+.pop{
+  position:fixed; z-index:20; background:var(--surface); border-radius:16px; padding:10px;
+  box-shadow:0 14px 40px -12px rgba(10,15,40,.45); display:grid; grid-template-columns:repeat(6,32px); gap:8px;
+}
+.pop[hidden]{display:none}
+.swatch{width:32px; height:32px; border-radius:50%; border:0; cursor:pointer; padding:0}
+.swatch[aria-pressed="true"]{box-shadow:0 0 0 3px var(--surface), 0 0 0 5px var(--ink)}
+
+.modal{position:fixed; inset:0; z-index:30; background:rgba(10,12,20,.6); display:flex; align-items:center; justify-content:center; padding:20px}
+.modal[hidden]{display:none}
+.modal-box{background:var(--surface); border-radius:20px; padding:16px; max-width:460px; width:100%; max-height:90vh; overflow:auto; text-align:center}
+.modal-box img{width:100%; border-radius:12px; display:block}
+.modal-box p{font-size:.88rem; color:var(--muted); margin:12px 4px}
+.modal-box .actions{justify-content:center}
+
+.toast{
+  position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%);
+  background:var(--ink); color:var(--bg); padding:.6em 1.2em; border-radius:999px; font-size:.9rem; z-index:40;
+  opacity:0; pointer-events:none; transition:opacity .2s;
+}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+.share-row{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
+.btn.small{font-size:.88rem; padding:.5em 1.1em; border-width:1.5px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center}
+.share-row .btn.small{flex:1 1 0}
+.hint{font-size:.78rem; color:var(--muted); margin:8px 2px 0}
+.banner{background:var(--field); border:1.5px solid var(--accent); border-radius:14px; padding:10px 12px; margin-bottom:14px; font-size:.88rem}
+.banner[hidden]{display:none}
+.banner p{margin:0 0 8px}
+.banner .actions{margin-top:0}
+textarea{font:inherit; font-size:.85rem; color:var(--ink); background:var(--field); border:1.5px solid transparent; border-radius:12px; padding:.6em .75em; width:100%; resize:vertical; word-break:break-all}
+textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+.modal-box.left{text-align:left}
+.modal-box.left .actions{justify-content:flex-start; margin-top:8px}
+.modal-box h2{font-size:1.05rem; margin:2px 0 14px}
+.gap-top{margin-top:22px}
+.err{color:var(--warn); font-size:.82rem; margin:6px 2px 0}
+.err[hidden]{display:none}
+.preview canvas{touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
+.preview .hint{margin-top:10px}
+.pop.quick{display:block; width:min(300px, calc(100vw - 24px))}
+.pop.quick[hidden]{display:none}
+.quick-title{margin:0 0 8px; font-size:.85rem; color:var(--muted)}
+.quick-chips{display:flex; flex-wrap:wrap; gap:6px}
+.quick-chips .chip{margin:0}
+.row.flash{box-shadow:0 0 0 2px var(--accent)}
+.rows{position:relative}
+.grip{
+  grid-area:grip; align-self:stretch; width:24px; margin:-4px -4px -4px -2px; border:0; border-radius:10px;
+  background:transparent; color:var(--muted); cursor:grab; touch-action:none; display:flex; align-items:center; justify-content:center; padding:0;
+}
+.grip:hover{background:var(--surface); color:var(--ink)}
+.grip:focus-visible{outline:3px solid var(--accent); outline-offset:1px}
+.row.lifting{position:relative; z-index:5; background:var(--surface); box-shadow:0 0 0 2px var(--accent), 0 16px 32px -12px rgba(10,15,40,.45)}
+.row.lifting .grip{cursor:grabbing}
+.sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>まるいちにち</h1>
+    <p>一日の過ごし方を、時計みたいな円グラフに。</p>
+  </header>
+
+  <div class="layout">
+    <section class="preview" aria-label="プレビュー">
+      <canvas id="card" width="1080" height="1500" role="img" aria-label="一日のスケジュールの円グラフ"></canvas>
+      <p class="hint">円の空いているところをタップすると予定を追加できます。境目の●をドラッグすると、15分刻みで時間を変えられます。扇形をつかんで動かすと順番を入れ替えられます（スマホは長押ししてから）。</p>
+      <div class="actions">
+        <button class="btn primary" id="saveBtn" type="button">画像を保存</button>
+        <button class="btn" id="copyImgBtn" type="button">画像をコピー</button>
+        <span class="seg-label" id="cardThemeLabel">カード</span>
+        <div class="seg" role="group" aria-labelledby="cardThemeLabel">
+          <button type="button" data-card="day" aria-pressed="true">昼</button>
+          <button type="button" data-card="night" aria-pressed="false">夜</button>
+        </div>
+      </div>
+      <div class="share-row">
+        <a class="btn small" id="xBtn" href="https://x.com/intent/post" target="_blank" rel="noopener noreferrer">Xに投稿</a>
+        <button class="btn small" id="linkBtn" type="button">リンクで共有</button>
+      </div>
+      <p class="hint">Xの投稿画面には画像が自動で付かないので、先に「画像を保存」してから添付してください。</p>
+      <p class="hint">共有リンクを受け取ったときは <button class="linkish" id="openImport" type="button">リンクを貼り付けて読み込む</button></p>
+    </section>
+
+    <section class="panel" aria-label="入力">
+      <div class="banner" id="sharedBanner" hidden>
+        <p>共有された予定を表示しています。ここで編集しても、あなたの保存データは変わりません。</p>
+        <div class="actions">
+          <button class="btn small" id="adoptShared" type="button">これを自分の予定にする</button>
+          <button class="btn small" id="backToMine" type="button">自分の予定に戻す</button>
+        </div>
+      </div>
+      <label class="field"><span>名前・タイトル</span>
+        <input type="text" class="title-input" id="title" maxlength="40" placeholder="わたしの一日">
+      </label>
+      <label class="field"><span>サブタイトル（任意）</span>
+        <input type="text" id="subtitle" maxlength="60" placeholder="例：2026年10月20日 / 平日のルーティン">
+      </label>
+
+      <div class="section-head">
+        <h2>予定</h2>
+        <div class="summary" id="summary"></div>
+      </div>
+      <ul class="rows" id="rows"></ul>
+
+      <div class="chips" id="chips" aria-label="予定を追加"></div>
+
+      <div class="foot-actions">
+        <button class="linkish" id="sampleBtn" type="button">サンプルを入れる</button>
+        <button class="linkish" id="clearBtn" type="button">すべて消す</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="pop" id="pop" hidden role="dialog" aria-label="色を選ぶ"></div>
+<div class="pop quick" id="quickPop" hidden role="dialog" aria-labelledby="quickTitle">
+  <p class="quick-title" id="quickTitle"></p>
+  <div class="quick-chips" id="quickChips"></div>
+</div>
+
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-label="画像を保存">
+  <div class="modal-box">
+    <img id="modalImg" alt="作成した一日の円グラフ">
+    <p id="modalMsg">画像を長押し（パソコンでは右クリック）して保存できます。</p>
+    <div class="actions">
+      <button class="btn primary" id="shareBtn" type="button" hidden>共有する</button>
+      <button class="btn" id="closeModal" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="shareModal" hidden role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+  <div class="modal-box left">
+    <h2 id="shareTitle">リンクで共有</h2>
+    <label class="field"><span id="shareOutLabel">この予定のリンク</span>
+      <textarea id="shareOut" readonly rows="4"></textarea>
+    </label>
+    <div class="actions"><button class="btn primary" id="copyShare" type="button">コピー</button></div>
+    <p class="hint" id="frameNote">claude.ai 上では、リンクを開くだけでは予定が表示されません。受け取った人はページを開いて、下の欄にリンクごと貼り付けて「読み込む」を押してください。</p>
+    <label class="field gap-top"><span>受け取ったリンクやコードを貼り付けて読み込む</span>
+      <textarea id="shareIn" rows="3" placeholder="ここに貼り付け"></textarea>
+    </label>
+    <p class="err" id="shareErr" hidden></p>
+    <div class="actions">
+      <button class="btn" id="importBtn" type="button">読み込む</button>
+      <button class="btn" id="closeShare" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+  const STORE_KEY = "maruichinichi:v1";
+  const PALETTE = ["#8E9AE8","#5FA8E8","#6EC6D9","#7FCFA0","#C4D86A","#F5C95C","#F4A07A","#EE7F86","#E9A7C9","#B79BEA","#D8B48C","#A9B3C2"];
+  const PRESETS = [
+    {label:"睡眠", color:"#8E9AE8", dur:420},
+    {label:"仕事", color:"#5FA8E8", dur:180},
+    {label:"食事", color:"#F5C95C", dur:45},
+    {label:"作業", color:"#F4A07A", dur:120},
+    {label:"移動", color:"#A9B3C2", dur:30},
+    {label:"家事", color:"#7FCFA0", dur:30},
+    {label:"入浴", color:"#6EC6D9", dur:30},
+    {label:"趣味", color:"#EE7F86", dur:120},
+    {label:"勉強", color:"#B79BEA", dur:60},
+  ];
+  const SAMPLE = [
+    {label:"睡眠", start:0, end:420, color:"#8E9AE8"},
+    {label:"朝食", start:450, end:480, color:"#F5C95C"},
+    {label:"移動", start:510, end:540, color:"#A9B3C2"},
+    {label:"仕事", start:540, end:720, color:"#5FA8E8"},
+    {label:"昼食", start:720, end:780, color:"#F5C95C"},
+    {label:"仕事", start:780, end:1080, color:"#5FA8E8"},
+    {label:"移動", start:1080, end:1110, color:"#A9B3C2"},
+    {label:"夕食", start:1140, end:1200, color:"#F5C95C"},
+    {label:"趣味", start:1200, end:1350, color:"#EE7F86"},
+    {label:"入浴", start:1350, end:1380, color:"#6EC6D9"},
+  ];
+  const CARD_THEMES = {
+    day:  {bg:"#FBFBFD", ink:"#1D2334", sub:"#7A8194", ring:"#EEF1F6", ringNight:"#DFE4EE", gap:"#F0F2F7", tick:"#B9C0CE"},
+    night:{bg:"#1A1F2E", ink:"#EEF0F6", sub:"#9AA2B6", ring:"#252B3D", ringNight:"#151927", gap:"#242A3B", tick:"#4A536A"}
+  };
+  const SLICE_INK = "#1D2334";
+  const FONT = '"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif';
+
+  let uid = 1;
+  const newId = () => "e" + (uid++);
+  const freshState = () => ({title:"", subtitle:"", card:"day", entries: SAMPLE.map(e => ({...e, id:newId()}))});
+  let viewingShared = false;
+  let state = load() || freshState();
+  const fromHash = readHash();
+  if(fromHash){ state = fromHash; viewingShared = true; }
+  state.entries.forEach(e => { if(!e.id) e.id = newId(); });
+
+  // ---------- storage ----------
+  function load(){
+    try{
+      const raw = localStorage.getItem(STORE_KEY);
+      if(!raw) return null;
+      const s = JSON.parse(raw);
+      if(!s || !Array.isArray(s.entries)) return null;
+      s.entries = s.entries.filter(e => Number.isFinite(e.start) && Number.isFinite(e.end))
+        .map(e => ({label:String(e.label||""), start:clampMin(e.start), end:clampMin(e.end), color:String(e.color||PALETTE[0])}));
+      s.title = String(s.title||""); s.subtitle = String(s.subtitle||"");
+      s.card = s.card === "night" ? "night" : "day";
+      return s;
+    }catch(_){ return null; }
+  }
+  // ---------- share encoding ----------
+  function b64e(str){
+    const bytes = new TextEncoder().encode(str); let bin = "";
+    bytes.forEach(b => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function b64d(s){
+    s = s.replace(/-/g, "+").replace(/_/g, "/"); while(s.length % 4) s += "=";
+    const bin = atob(s); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+  }
+  function encodeState(){
+    const o = {v:1, t:state.title, s:state.subtitle, c:state.card === "night" ? 1 : 0,
+      e: sorted().map(e => { const i = PALETTE.indexOf(e.color); return [e.label, e.start, e.end, i >= 0 ? i : e.color]; })};
+    return b64e(JSON.stringify(o));
+  }
+  function decodeState(code){
+    try{
+      const o = JSON.parse(b64d(String(code).trim()));
+      if(!o || !Array.isArray(o.e)) return null;
+      const entries = o.e.slice(0, 60).filter(a => Array.isArray(a) && a.length >= 3).map(a => ({
+        id:newId(), label:String(a[0] ?? "").slice(0, 24), start:clampMin(a[1]), end:clampMin(a[2]),
+        color: (Number.isInteger(a[3]) && PALETTE[a[3]]) ? PALETTE[a[3]] : (/^#[0-9a-fA-F]{6}$/.test(String(a[3])) ? String(a[3]) : PALETTE[0])
+      }));
+      return {title:String(o.t ?? "").slice(0, 40), subtitle:String(o.s ?? "").slice(0, 60), card:o.c === 1 ? "night" : "day", entries};
+    }catch(_){ return null; }
+  }
+  function extractCode(text){ const t = String(text || "").trim(); const m = /[#&?]d=([A-Za-z0-9_-]+)/.exec(t); return m ? m[1] : t; }
+  function readHash(){ try{ const m = /[#&]d=([A-Za-z0-9_-]+)/.exec(location.hash); return m ? decodeState(m[1]) : null; }catch(_){ return null; } }
+  // Inside claude.ai the page runs in a temporary frame whose address can't be shared, and the
+  // artifact link doesn't pass #d= through, so links there must be pasted in. Self-hosted, links open directly.
+  const ARTIFACT_URL = "https://claude.ai/artifact/6TiNbgBryRV8RYPFzWVCyo";
+  const FRAMED = (() => { try{ return window.top !== window; }catch(_){ return true; } })();
+  function shareLink(){
+    const base = (!FRAMED && /^https?:$/.test(location.protocol)) ? location.href.split("#")[0] : ARTIFACT_URL;
+    return base + "#d=" + encodeState();
+  }
+
+  let saveTimer = 0;
+  function persist(){
+    if(viewingShared) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try{
+        const out = {title:state.title, subtitle:state.subtitle, card:state.card,
+          entries: state.entries.map(({label,start,end,color}) => ({label,start,end,color}))};
+        localStorage.setItem(STORE_KEY, JSON.stringify(out));
+      }catch(_){}
+    }, 250);
+  }
+
+  // ---------- time helpers ----------
+  function clampMin(m){ m = Math.round(Number(m)||0); return ((m % 1440) + 1440) % 1440; }
+  function dur(e){ const d = (e.end - e.start + 1440) % 1440; return d === 0 ? 1440 : d; }
+  function hhmm(m){ m = clampMin(m); return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); }
+  function hmm(m){ m = clampMin(m); return Math.floor(m/60) + ":" + String(m%60).padStart(2,"0"); }
+  function parseTime(v){ const p = /^(\d{1,2}):(\d{2})/.exec(v||""); return p ? clampMin(+p[1]*60 + +p[2]) : null; }
+  function durText(d){ const h = Math.floor(d/60), m = d%60; return (h ? h + "時間" : "") + (m ? m + "分" : (h ? "" : "0分")); }
+  function sorted(){ return [...state.entries].sort((a,b) => a.start - b.start || a.end - b.end); }
+  function overlaps(a, b){
+    const as = a.start, ae = a.start + dur(a);
+    for(const shift of [-1440, 0, 1440]){
+      const bs = b.start + shift, be = bs + dur(b);
+      if(as < be && bs < ae) return true;
+    }
+    return false;
+  }
+  function markArray(){
+    const mark = new Uint8Array(1440);
+    for(const e of state.entries){ const d = dur(e); for(let i=0;i<d;i++) mark[(e.start+i)%1440] = 1; }
+    return mark;
+  }
+  function coveredMinutes(){
+    const mark = markArray();
+    let n = 0; for(let i=0;i<1440;i++) n += mark[i]; return n;
+  }
+  function colorFor(label){
+    const hit = state.entries.find(e => e.label === label);
+    if(hit) return hit.color;
+    const p = PRESETS.find(p => p.label === label);
+    if(p) return p.color;
+    if(/食|ごはん|ランチ|ディナー/.test(label)) return "#F5C95C";
+    if(/寝|睡眠|仮眠/.test(label)) return "#8E9AE8";
+    const used = new Set(state.entries.map(e => e.color));
+    return PALETTE.find(c => !used.has(c)) || PALETTE[state.entries.length % PALETTE.length];
+  }
+
+  // ---------- canvas drawing ----------
+  const canvas = document.getElementById("card");
+  const W = 1080;
+  const CX = W/2, CY = 700, RIN = 140, ROUT = 400, RR0 = 412, RR1 = 472;
+  let drag = null, pendingGap = null, sliceDrag = null, slicePress = null;
+  function layoutHeight(n){ return 1230 + Math.ceil(n/2) * 62 + (n ? 40 : 0) + 70; }
+
+  function fitText(ctx, text, maxW){
+    if(ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while(t.length > 1 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+    return t + "…";
+  }
+
+  function draw(exporting){
+    const th = CARD_THEMES[state.card];
+    const items = sorted();
+    const H = layoutHeight(items.length);
+    if(canvas.height !== H) canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = th.bg; ctx.fillRect(0,0,W,H);
+    ctx.textBaseline = "alphabetic";
+
+    // title
+    const title = state.title.trim() || "わたしの一日";
+    ctx.fillStyle = th.ink; ctx.textAlign = "center";
+    let ts = 64;
+    do { ctx.font = `700 ${ts}px ${FONT}`; ts -= 2; } while(ctx.measureText(title).width > W - 140 && ts > 32);
+    ctx.fillText(fitText(ctx, title, W - 140), W/2, state.subtitle.trim() ? 118 : 140);
+    if(state.subtitle.trim()){
+      ctx.font = `500 30px ${FONT}`; ctx.fillStyle = th.sub;
+      ctx.fillText(fitText(ctx, state.subtitle.trim(), W - 160), W/2, 172);
+    }
+
+    // dial
+    const cx = CX, cy = CY, rIn = RIN, rOut = ROUT, rR0 = RR0, rR1 = RR1;
+    const ang = m => (m/1440) * Math.PI * 2 - Math.PI/2;
+
+    // hour ring (night band from 18:00 to 6:00)
+    ctx.beginPath(); ctx.arc(cx,cy,rR1,0,Math.PI*2); ctx.arc(cx,cy,rR0,0,Math.PI*2,true);
+    ctx.fillStyle = th.ring; ctx.fill("evenodd");
+    ctx.beginPath(); ctx.arc(cx,cy,rR1,ang(1080),ang(1800)); ctx.arc(cx,cy,rR0,ang(1800),ang(1080),true); ctx.closePath();
+    ctx.fillStyle = th.ringNight; ctx.fill();
+    for(let h=0; h<24; h++){
+      const a = ang(h*60);
+      if(h % 3 === 0){
+        ctx.font = `700 30px ${FONT}`; ctx.fillStyle = th.sub; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(String(h), cx + Math.cos(a)*(rR0+rR1)/2, cy + Math.sin(a)*(rR0+rR1)/2 + 1);
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a)*(rR0+20), cy + Math.sin(a)*(rR0+20));
+        ctx.lineTo(cx + Math.cos(a)*(rR1-20), cy + Math.sin(a)*(rR1-20));
+        ctx.strokeStyle = th.tick; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.stroke();
+      }
+    }
+    ctx.textBaseline = "alphabetic";
+
+    // empty base
+    ctx.beginPath(); ctx.arc(cx,cy,rOut,0,Math.PI*2); ctx.arc(cx,cy,rIn,0,Math.PI*2,true);
+    ctx.fillStyle = th.gap; ctx.fill("evenodd");
+
+    // slices
+    for(const e of items){
+      const a0 = ang(e.start), a1 = ang(e.start + dur(e));
+      ctx.beginPath(); ctx.arc(cx,cy,rOut,a0,a1); ctx.arc(cx,cy,rIn,a1,a0,true); ctx.closePath();
+      ctx.fillStyle = e.color; ctx.fill();
+      ctx.strokeStyle = th.bg; ctx.lineWidth = 5; ctx.lineJoin = "round"; ctx.stroke();
+    }
+
+    // pending quick-add area (preview only)
+    if(!exporting && pendingGap){
+      const pd = ((pendingGap.end - pendingGap.start + 1440) % 1440) || 1440;
+      ctx.beginPath(); ctx.arc(cx,cy,rOut,ang(pendingGap.start),ang(pendingGap.start + pd)); ctx.arc(cx,cy,rIn,ang(pendingGap.start + pd),ang(pendingGap.start),true); ctx.closePath();
+      ctx.fillStyle = th.sub; ctx.globalAlpha = .35; ctx.fill(); ctx.globalAlpha = 1;
+    }
+
+    // slice labels
+    const rM = (rIn + rOut)/2, radial = (rOut - rIn) * 0.86;
+    ctx.textAlign = "center";
+    for(const e of items){
+      const d = dur(e), theta = d/1440 * Math.PI*2;
+      const phi = ang(e.start + d/2);
+      const chord = theta >= Math.PI ? 9999 : 2 * rM * Math.sin(theta/2) * 0.9;
+      const sx = Math.abs(Math.sin(phi)), cxv = Math.abs(Math.cos(phi));
+      const fits = (w,h) => (w*sx + h*cxv) <= chord && (w*cxv + h*sx) <= radial;
+      const label = e.label.trim() || "（無題）";
+      const time = hmm(e.start) + "-" + hmm(e.start + d);
+      const px = cx + Math.cos(phi)*rM, py = cy + Math.sin(phi)*rM;
+      let done = false;
+      for(const s of [36, 32, 28]){
+        ctx.font = `700 ${s}px ${FONT}`; const lw = ctx.measureText(label).width;
+        ctx.font = `700 ${Math.round(s*.72)}px ${FONT}`; const tw = ctx.measureText(time).width;
+        const h = s * 2.05;
+        if(fits(Math.max(lw,tw), h)){
+          ctx.fillStyle = SLICE_INK;
+          ctx.font = `700 ${s}px ${FONT}`; ctx.fillText(label, px, py - s*0.12);
+          ctx.globalAlpha = .72; ctx.font = `700 ${Math.round(s*.72)}px ${FONT}`; ctx.fillText(time, px, py + s*0.88);
+          ctx.globalAlpha = 1; done = true; break;
+        }
+      }
+      if(!done){
+        for(const s of [30, 26]){
+          ctx.font = `700 ${s}px ${FONT}`; const lw = ctx.measureText(label).width;
+          if(fits(lw, s*1.2)){ ctx.fillStyle = SLICE_INK; ctx.textBaseline = "middle"; ctx.fillText(label, px, py); ctx.textBaseline = "alphabetic"; break; }
+        }
+      }
+    }
+
+    // center
+    ctx.beginPath(); ctx.arc(cx,cy,rIn-6,0,Math.PI*2); ctx.fillStyle = th.bg; ctx.fill();
+    ctx.textBaseline = "middle";
+    if(!exporting && drag){
+      ctx.fillStyle = th.ink; ctx.font = `700 52px ${FONT}`;
+      ctx.fillText(hmm(drag.m0 + drag.cur), cx, cy + 2);
+    } else if(!exporting && sliceDrag){
+      const se = sliceDrag.e;
+      ctx.fillStyle = th.ink; ctx.font = `700 36px ${FONT}`;
+      ctx.fillText(fitText(ctx, se.label.trim() || "（無題）", (rIn - 24) * 2), cx, cy - 18);
+      ctx.fillStyle = th.sub; ctx.font = `700 26px ${FONT}`;
+      ctx.fillText(hmm(se.start) + "-" + hmm(se.start + dur(se)), cx, cy + 26);
+    } else {
+      ctx.fillStyle = th.sub; ctx.font = `700 40px ${FONT}`;
+      ctx.fillText("24h", cx, cy + 2);
+    }
+    ctx.textBaseline = "alphabetic";
+
+    // outline the slice being moved (preview only)
+    if(!exporting && sliceDrag){
+      const se = sliceDrag.e, a0 = ang(se.start), a1 = ang(se.start + dur(se));
+      ctx.beginPath(); ctx.arc(cx,cy,rOut,a0,a1); ctx.arc(cx,cy,rIn,a1,a0,true); ctx.closePath();
+      ctx.strokeStyle = th.ink; ctx.lineWidth = 6; ctx.lineJoin = "round"; ctx.stroke();
+    }
+
+    // drag handles (preview only)
+    if(!exporting){
+      const active = drag ? clampMin(drag.m0 + drag.cur) : null;
+      for(const b of boundaries()){
+        const a = ang(b.m), on = b.m === active;
+        if(on){
+          ctx.beginPath(); ctx.moveTo(cx + Math.cos(a)*rIn, cy + Math.sin(a)*rIn); ctx.lineTo(cx + Math.cos(a)*rOut, cy + Math.sin(a)*rOut);
+          ctx.strokeStyle = th.ink; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(cx + Math.cos(a)*(rOut+6), cy + Math.sin(a)*(rOut+6), on ? 15 : 9, 0, Math.PI*2);
+        ctx.fillStyle = on ? th.ink : th.sub; ctx.globalAlpha = on ? 1 : .6; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.strokeStyle = th.bg; ctx.lineWidth = 3; ctx.stroke();
+      }
+    }
+
+    // legend
+    if(items.length){
+      const top = 1240, colW = (W - 120 - 40) / 2, rowH = 62;
+      items.forEach((e, i) => {
+        const col = i < Math.ceil(items.length/2) ? 0 : 1;
+        const row = col === 0 ? i : i - Math.ceil(items.length/2);
+        const x = 60 + col*(colW + 40), y = top + row*rowH;
+        ctx.beginPath(); ctx.arc(x + 13, y + 18, 13, 0, Math.PI*2); ctx.fillStyle = e.color; ctx.fill();
+        const tStr = hmm(e.start) + "–" + hmm(e.start + dur(e));
+        ctx.font = `500 26px ${FONT}`; ctx.fillStyle = th.sub; ctx.textAlign = "right";
+        const tw = ctx.measureText(tStr).width;
+        ctx.fillText(tStr, x + colW, y + 28);
+        ctx.font = `700 30px ${FONT}`; ctx.fillStyle = th.ink; ctx.textAlign = "left";
+        ctx.fillText(fitText(ctx, e.label.trim() || "（無題）", colW - tw - 64), x + 40, y + 29);
+      });
+    }
+
+    // footer
+    ctx.font = `500 22px ${FONT}`; ctx.fillStyle = th.sub; ctx.textAlign = "center"; ctx.globalAlpha = .7;
+    ctx.fillText("まるいちにち", W/2, H - 34); ctx.globalAlpha = 1;
+  }
+
+  // load web font glyphs for whatever text is on the card, then redraw
+  const loadedChars = new Set();
+  function ensureFonts(){
+    if(!document.fonts || !document.fonts.load) return;
+    const text = [state.title, state.subtitle, "わたしの一日（無題）まるいちにち24h0123456789:-–…", ...state.entries.map(e => e.label)].join("");
+    const fresh = [...new Set(text)].filter(c => !loadedChars.has(c));
+    if(!fresh.length) return;
+    fresh.forEach(c => loadedChars.add(c));
+    const s = fresh.join("");
+    Promise.all([document.fonts.load(`700 40px "Zen Maru Gothic"`, s), document.fonts.load(`500 40px "Zen Maru Gothic"`, s)])
+      .then(() => scheduleDraw()).catch(() => {});
+  }
+  let raf = 0;
+  function scheduleDraw(){ cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { draw(); }); }
+  function changed(){ ensureFonts(); scheduleDraw(); updateSummary(); persist(); updateXLink(); }
+
+  // ---------- editor ----------
+  const rowsEl = document.getElementById("rows");
+  const summaryEl = document.getElementById("summary");
+
+  function updateSummary(){
+    const c = coveredMinutes();
+    summaryEl.innerHTML = "";
+    const b1 = document.createElement("b"); b1.textContent = durText(c);
+    const b2 = document.createElement("b"); b2.textContent = durText(1440 - c);
+    summaryEl.append("記入 ", b1, " ／ 空き ", b2);
+    // overlap warnings
+    rowsEl.querySelectorAll(".row").forEach(li => {
+      const e = state.entries.find(x => x.id === li.dataset.id);
+      const w = li.querySelector(".warn");
+      if(!e || !w) return;
+      const hit = state.entries.filter(o => o !== e && overlaps(e, o));
+      w.textContent = hit.length ? "「" + hit.map(o => o.label || "無題").join("」「") + "」と時間が重なっています" : "";
+      w.hidden = !hit.length;
+      const durEl = li.querySelector(".dur"); if(durEl) durEl.textContent = durText(dur(e));
+    });
+  }
+
+  function renderRows(){
+    rowsEl.innerHTML = "";
+    const items = sorted();
+    if(!items.length){
+      const li = document.createElement("li"); li.className = "empty";
+      li.textContent = "まだ予定がありません。下のボタンから追加してください。";
+      rowsEl.append(li);
+    }
+    for(const e of items){
+      const li = document.createElement("li"); li.className = "row"; li.dataset.id = e.id;
+
+      const dot = document.createElement("button"); dot.type = "button"; dot.className = "dot";
+      dot.style.background = e.color; dot.setAttribute("aria-label", "色を変える");
+      dot.addEventListener("click", ev => { ev.stopPropagation(); openPop(dot, e); });
+
+      const label = document.createElement("input"); label.type = "text"; label.className = "label";
+      label.value = e.label; label.maxLength = 24; label.placeholder = "予定の名前"; label.setAttribute("aria-label", "予定の名前");
+      label.addEventListener("input", () => { e.label = label.value; changed(); });
+
+      const del = document.createElement("button"); del.type = "button"; del.className = "icon del";
+      del.textContent = "×"; del.setAttribute("aria-label", (e.label || "この予定") + "を削除");
+      del.addEventListener("click", () => { state.entries = state.entries.filter(x => x !== e); renderRows(); changed(); });
+
+      const time = document.createElement("div"); time.className = "time";
+      const st = document.createElement("input"); st.type = "time"; st.value = hhmm(e.start); st.setAttribute("aria-label", "開始時刻");
+      const en = document.createElement("input"); en.type = "time"; en.value = hhmm(e.end); en.setAttribute("aria-label", "終了時刻");
+      const sep = document.createElement("span"); sep.textContent = "〜"; sep.setAttribute("aria-hidden", "true");
+      const du = document.createElement("span"); du.className = "dur"; du.textContent = durText(dur(e));
+      const warn = document.createElement("div"); warn.className = "warn"; warn.hidden = true;
+      const onT = (inp, key) => {
+        inp.addEventListener("input", () => { const v = parseTime(inp.value); if(v !== null){ e[key] = v; changed(); } });
+        inp.addEventListener("change", () => { const v = parseTime(inp.value); if(v !== null){ e[key] = v; } renderRows(); changed(); });
+      };
+      onT(st, "start"); onT(en, "end");
+      time.append(st, sep, en, du, warn);
+
+      li.append(makeGrip(e, li), dot, label, del, time);
+      rowsEl.append(li);
+    }
+    updateSummary();
+  }
+
+  // chips
+  const chipsEl = document.getElementById("chips");
+  function nextStart(){
+    const items = sorted();
+    if(!items.length) return 0;
+    const last = items[items.length - 1];
+    return clampMin(last.start + dur(last));
+  }
+  function addEntry(label, d){
+    const s = nextStart();
+    state.entries.push({id:newId(), label, start:s, end:clampMin(s + d), color:colorFor(label)});
+    renderRows(); changed();
+    const li = rowsEl.querySelector(`[data-id="${state.entries[state.entries.length-1].id}"]`);
+    if(li){ const inp = li.querySelector(label ? 'input[type=time]' : 'input[type=text]'); if(inp) inp.focus({preventScroll:false}); }
+  }
+  PRESETS.forEach(p => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "chip";
+    const i = document.createElement("i"); i.style.background = p.color;
+    b.append(i, p.label);
+    b.setAttribute("aria-label", p.label + "を追加");
+    b.addEventListener("click", () => addEntry(p.label, p.dur));
+    chipsEl.append(b);
+  });
+  const addFree = document.createElement("button"); addFree.type = "button"; addFree.className = "chip add";
+  addFree.textContent = "＋ 自由に追加";
+  addFree.addEventListener("click", () => addEntry("", 60));
+  chipsEl.append(addFree);
+
+  // color popover
+  const pop = document.getElementById("pop");
+  let popTarget = null;
+  PALETTE.forEach(c => {
+    const s = document.createElement("button"); s.type = "button"; s.className = "swatch"; s.style.background = c;
+    s.dataset.color = c; s.setAttribute("aria-label", "色 " + c);
+    s.addEventListener("click", () => {
+      if(!popTarget) return;
+      const {entry, btn} = popTarget;
+      entry.color = c; btn.style.background = c;
+      closePop(); changed(); btn.focus();
+    });
+    pop.append(s);
+  });
+  function openPop(btn, entry){
+    popTarget = {btn, entry};
+    pop.querySelectorAll(".swatch").forEach(s => s.setAttribute("aria-pressed", String(s.dataset.color === entry.color)));
+    pop.hidden = false;
+    const r = btn.getBoundingClientRect(), pr = pop.getBoundingClientRect();
+    let left = Math.min(r.left, window.innerWidth - pr.width - 12);
+    let top = r.bottom + 8;
+    if(top + pr.height > window.innerHeight - 12) top = Math.max(12, r.top - pr.height - 8);
+    pop.style.left = Math.max(12, left) + "px"; pop.style.top = top + "px";
+    const cur = pop.querySelector('[aria-pressed="true"]') || pop.querySelector(".swatch"); cur.focus();
+  }
+  function closePop(){ pop.hidden = true; popTarget = null; }
+  document.addEventListener("click", ev => { if(!pop.hidden && !pop.contains(ev.target)) closePop(); });
+  document.addEventListener("keydown", ev => { if(ev.key === "Escape"){ if(!pop.hidden){ const b = popTarget && popTarget.btn; closePop(); b && b.focus(); } if(!modal.hidden) closeModal(); } });
+  window.addEventListener("scroll", () => { if(!pop.hidden) closePop(); }, {passive:true});
+
+  // title, subtitle, card theme
+  const titleEl = document.getElementById("title"), subEl = document.getElementById("subtitle");
+  titleEl.value = state.title; subEl.value = state.subtitle;
+  titleEl.addEventListener("input", () => { state.title = titleEl.value; changed(); });
+  subEl.addEventListener("input", () => { state.subtitle = subEl.value; changed(); });
+  const segBtns = document.querySelectorAll("[data-card]");
+  function syncSeg(){ segBtns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.card === state.card))); }
+  segBtns.forEach(b => b.addEventListener("click", () => { state.card = b.dataset.card; syncSeg(); changed(); }));
+  syncSeg();
+
+  // sample / clear
+  document.getElementById("sampleBtn").addEventListener("click", () => {
+    state.entries = SAMPLE.map(e => ({...e, id:newId()})); renderRows(); changed(); toast("サンプルを入れました");
+  });
+  const clearBtn = document.getElementById("clearBtn");
+  let clearArmed = 0;
+  clearBtn.addEventListener("click", () => {
+    if(!clearArmed){
+      clearBtn.textContent = "もう一度押すと消去します";
+      clearArmed = setTimeout(() => { clearArmed = 0; clearBtn.textContent = "すべて消す"; }, 3000);
+      return;
+    }
+    clearTimeout(clearArmed); clearArmed = 0; clearBtn.textContent = "すべて消す";
+    state.entries = []; renderRows(); changed(); toast("予定をすべて消しました");
+  });
+
+  // ---------- save / share ----------
+  const toastEl = document.getElementById("toast");
+  let toastT = 0;
+  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove("show"), 2200); }
+
+  const dlPromise = (window.claude && typeof window.claude.use === "function")
+    ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
+
+  const modal = document.getElementById("modal"), modalImg = document.getElementById("modalImg"), shareBtn = document.getElementById("shareBtn");
+  let lastBlob = null, lastFocus = null, lastDataUrl = "";
+  function fileName(){ return ((state.title.trim() || "わたしの一日").replace(/[\\/:*?"<>|\s]+/g, "_").slice(0, 40)) + "_24h.png"; }
+  function openModal(blob, mode){
+    lastFocus = document.activeElement; lastBlob = blob;
+    document.getElementById("modalMsg").textContent = mode === "copy"
+      ? "この環境では直接コピーできませんでした。画像を右クリック（スマホでは長押し）して「画像をコピー」を選んでください。"
+      : "画像を長押し（パソコンでは右クリック）して保存できます。";
+    modalImg.src = lastDataUrl || canvas.toDataURL("image/png");
+    let canShare = false;
+    try{ canShare = !!(navigator.canShare && navigator.canShare({files:[new File([blob], fileName(), {type:"image/png"})]})); }catch(_){}
+    shareBtn.hidden = !canShare;
+    modal.hidden = false; document.getElementById("closeModal").focus();
+  }
+  function closeModal(){ modal.hidden = true; lastFocus && lastFocus.focus && lastFocus.focus(); }
+  document.getElementById("closeModal").addEventListener("click", closeModal);
+  modal.addEventListener("click", ev => { if(ev.target === modal) closeModal(); });
+  shareBtn.addEventListener("click", async () => {
+    if(!lastBlob) return;
+    try{ await navigator.share({files:[new File([lastBlob], fileName(), {type:"image/png"})], title: state.title || "わたしの一日"}); }
+    catch(err){ if(err && err.name !== "AbortError") toast("共有できませんでした。画像を長押しして保存してください"); }
+  });
+
+  const saveBtn = document.getElementById("saveBtn");
+  saveBtn.addEventListener("click", async () => {
+    draw(true);
+    lastDataUrl = canvas.toDataURL("image/png");
+    const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+    draw();
+    if(!blob){ toast("画像を作れませんでした"); return; }
+    saveBtn.disabled = true; const label = saveBtn.textContent; saveBtn.textContent = "準備中…";
+    let dl = null;
+    try{ dl = await dlPromise; }catch(_){ dl = null; }
+    saveBtn.disabled = false; saveBtn.textContent = label;
+    if(!dl){
+      if(!FRAMED){
+        // self-hosted page: a normal download link works
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = fileName();
+        document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        toast("画像を保存しました"); return;
+      }
+      openModal(blob); return;
+    }
+    try{
+      await dl.save({filename:fileName(), data:blob});
+      toast("画像を保存しました");
+    }catch(err){
+      const code = err && err.code;
+      if(code === "declined") return;
+      if(code === "rate_limited"){ toast("少し待ってからもう一度お試しください"); return; }
+      openModal(blob);
+    }
+  });
+
+  // ---------- share ----------
+  const xBtn = document.getElementById("xBtn");
+  function updateXLink(){
+    const title = state.title.trim() || "わたしの一日";
+    const params = new URLSearchParams({text: `「${title}」を円グラフにしました #まるいちにち`});
+    const link = shareLink(); if(link) params.set("url", link);
+    xBtn.href = "https://x.com/intent/post?" + params.toString();
+  }
+
+  const banner = document.getElementById("sharedBanner");
+  function refreshAll(){
+    titleEl.value = state.title; subEl.value = state.subtitle; syncSeg(); renderRows(); changed();
+    banner.hidden = !viewingShared;
+  }
+  function clearHash(){ try{ if(location.hash) history.replaceState(null, "", location.href.split("#")[0]); }catch(_){} }
+  document.getElementById("adoptShared").addEventListener("click", () => {
+    viewingShared = false; banner.hidden = true; persist(); clearHash(); toast("自分の予定として保存しました");
+  });
+  document.getElementById("backToMine").addEventListener("click", () => {
+    viewingShared = false; state = load() || freshState(); clearHash(); refreshAll(); toast("自分の予定に戻しました");
+  });
+
+  const shareModal = document.getElementById("shareModal"), shareOut = document.getElementById("shareOut"),
+        shareOutLabel = document.getElementById("shareOutLabel"), shareIn = document.getElementById("shareIn"),
+        shareErr = document.getElementById("shareErr");
+  let shareFocus = null;
+  function openShare(focusImport){
+    shareFocus = document.activeElement;
+    shareOutLabel.textContent = "この予定のリンク";
+    shareOut.value = shareLink();
+    shareIn.value = ""; shareErr.hidden = true;
+    shareModal.hidden = false;
+    if(focusImport) shareIn.focus(); else { shareOut.focus(); shareOut.select(); }
+  }
+  function closeShare(){ shareModal.hidden = true; if(shareFocus && shareFocus.focus) shareFocus.focus(); }
+  async function copyText(text, ta){
+    try{ await navigator.clipboard.writeText(text); return true; }catch(_){}
+    try{ ta.focus(); ta.select(); return document.execCommand("copy"); }catch(_){ return false; }
+  }
+  document.getElementById("linkBtn").addEventListener("click", () => openShare(false));
+  document.getElementById("openImport").addEventListener("click", () => openShare(true));
+  document.getElementById("copyShare").addEventListener("click", async () => {
+    toast(await copyText(shareOut.value, shareOut) ? "コピーしました" : "選択した状態にしたので、手動でコピーしてください");
+  });
+  document.getElementById("importBtn").addEventListener("click", () => {
+    const s = decodeState(extractCode(shareIn.value));
+    if(!s){ shareErr.textContent = "読み込めませんでした。リンクかコードを丸ごと貼り付けてください。"; shareErr.hidden = false; shareIn.focus(); return; }
+    state = s; viewingShared = true; refreshAll(); closeShare(); toast("共有された予定を読み込みました");
+  });
+  document.getElementById("closeShare").addEventListener("click", closeShare);
+  shareModal.addEventListener("click", ev => { if(ev.target === shareModal) closeShare(); });
+  document.addEventListener("keydown", ev => { if(ev.key === "Escape" && !shareModal.hidden) closeShare(); });
+
+  // ---------- reorder rows by drag ----------
+  // Entries swap places but keep their own length; the free time between them stays in place.
+  function snapshotOrder(){
+    const base = sorted().map(e => ({e, start:e.start, d:dur(e)}));
+    const gaps = base.slice(0, -1).map((b, i) => base[i+1].start - (b.start + b.d));
+    return {base, gaps, origin: base.length ? base[0].start : 0};
+  }
+  function applyOrder(ids, snap){
+    const byId = new Map(snap.base.map(b => [b.e.id, b]));
+    let t = snap.origin;
+    ids.forEach((id, i) => {
+      const b = byId.get(id); if(!b) return;
+      b.e.start = clampMin(t); b.e.end = clampMin(t + b.d);
+      t += b.d + (i < snap.gaps.length ? snap.gaps[i] : 0);
+    });
+  }
+  function syncRowTimes(){
+    rowsEl.querySelectorAll(".row").forEach(li => {
+      const e = state.entries.find(x => x.id === li.dataset.id); if(!e) return;
+      const t = li.querySelectorAll("input[type=time]"); t[0].value = hhmm(e.start); t[1].value = hhmm(e.end);
+    });
+  }
+  const domOrder = () => [...rowsEl.querySelectorAll(".row")].map(li => li.dataset.id);
+  let rowDrag = null;
+  function makeGrip(e, li){
+    const g = document.createElement("button"); g.type = "button"; g.className = "grip";
+    g.setAttribute("aria-label", `「${e.label || "無題"}」を並べ替え（上下キーでも移動できます）`);
+    g.innerHTML = '<svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="2" r="1.5"/><circle cx="2" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="2" cy="14" r="1.5"/><circle cx="8" cy="14" r="1.5"/></g></svg>';
+    g.addEventListener("pointerdown", ev => {
+      if(ev.button !== 0) return;
+      ev.preventDefault();
+      try{ g.setPointerCapture(ev.pointerId); }catch(_){}
+      const r = li.getBoundingClientRect();
+      rowDrag = {li, id:e.id, pointerId:ev.pointerId, grab:ev.clientY - r.top, snap:snapshotOrder()};
+      li.classList.add("lifting"); closePop(); closeQuick();
+      positionLifted(ev.clientY);
+    });
+    g.addEventListener("pointermove", ev => { if(rowDrag && ev.pointerId === rowDrag.pointerId) moveRow(ev.clientY); });
+    g.addEventListener("pointerup", finishRowDrag);
+    g.addEventListener("pointercancel", finishRowDrag);
+    g.addEventListener("lostpointercapture", finishRowDrag);
+    g.addEventListener("keydown", ev => {
+      if(ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+      ev.preventDefault();
+      const snap = snapshotOrder(); const ids = snap.base.map(b => b.e.id);
+      const i = ids.indexOf(e.id), j = i + (ev.key === "ArrowUp" ? -1 : 1);
+      if(j < 0 || j >= ids.length) return;
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+      applyOrder(ids, snap); renderRows(); changed();
+      const ng = rowsEl.querySelector(`[data-id="${e.id}"] .grip`); if(ng) ng.focus();
+    });
+    return g;
+  }
+  function positionLifted(clientY){
+    const {li, grab} = rowDrag;
+    const natural = rowsEl.getBoundingClientRect().top + li.offsetTop;
+    li.style.transform = `translateY(${clientY - grab - natural}px)`;
+  }
+  function moveRow(clientY){
+    const li = rowDrag.li;
+    const center = clientY - rowDrag.grab + li.offsetHeight/2;
+    let moved = false, guard = 0;
+    while(guard++ < 60){
+      const prev = li.previousElementSibling, next = li.nextElementSibling;
+      // move the neighbours, not the dragged row, so pointer capture on its grip is kept
+      if(prev && center < prev.getBoundingClientRect().top + prev.offsetHeight/2){ rowsEl.insertBefore(prev, li.nextElementSibling); moved = true; continue; }
+      if(next && center > next.getBoundingClientRect().top + next.offsetHeight/2){ rowsEl.insertBefore(next, li); moved = true; continue; }
+      break;
+    }
+    positionLifted(clientY);
+    if(moved){ applyOrder(domOrder(), rowDrag.snap); syncRowTimes(); changed(); }
+    if(clientY < 70) window.scrollBy(0, -14);
+    else if(clientY > window.innerHeight - 70) window.scrollBy(0, 14);
+  }
+  function finishRowDrag(){
+    if(!rowDrag) return;
+    const li = rowDrag.li; rowDrag = null;
+    li.classList.remove("lifting"); li.style.transform = "";
+    renderRows(); changed();
+  }
+
+  // ---------- copy image to clipboard ----------
+  document.getElementById("copyImgBtn").addEventListener("click", () => {
+    draw(true);
+    lastDataUrl = canvas.toDataURL("image/png");
+    const blobP = new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error("blob")), "image/png"));
+    draw();
+    const fallback = async () => {
+      const b = await blobP.catch(() => null);
+      if(b) openModal(b, "copy"); else toast("画像を作れませんでした");
+    };
+    if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)){ fallback(); return; }
+    try{
+      // pass the promise directly so Safari keeps the click as the user gesture
+      navigator.clipboard.write([new ClipboardItem({"image/png": blobP})])
+        .then(() => toast("画像をコピーしました"))
+        .catch(fallback);
+    }catch(_){ fallback(); }
+  });
+
+  // ---------- dial interaction ----------
+  const quickPop = document.getElementById("quickPop"), quickTitle = document.getElementById("quickTitle"), quickChips = document.getElementById("quickChips");
+  let suppressClick = false;
+
+  function toCanvas(clientX, clientY){
+    const r = canvas.getBoundingClientRect();
+    return {x:(clientX - r.left) * canvas.width / r.width, y:(clientY - r.top) * canvas.height / r.height, scale:canvas.width / r.width};
+  }
+  function minuteAt(x, y){
+    const m = (Math.atan2(y - CY, x - CX) + Math.PI/2) / (Math.PI*2) * 1440;
+    return ((m % 1440) + 1440) % 1440;
+  }
+  function boundaries(){
+    const map = new Map();
+    for(const e of state.entries){
+      const d = dur(e); if(d >= 1440) continue;
+      const s = e.start, en = clampMin(e.start + d);
+      if(!map.has(s)) map.set(s, {m:s, starts:[], ends:[]});
+      if(!map.has(en)) map.set(en, {m:en, starts:[], ends:[]});
+      map.get(s).starts.push(e); map.get(en).ends.push(e);
+    }
+    return [...map.values()];
+  }
+  function entryAt(m){
+    const items = sorted();
+    for(let i = items.length - 1; i >= 0; i--){ const e = items[i]; if(((m - e.start + 1440) % 1440) < dur(e)) return e; }
+    return null;
+  }
+  function hitTest(clientX, clientY, touch){
+    const p = toCanvas(clientX, clientY);
+    const r = Math.hypot(p.x - CX, p.y - CY);
+    if(r < RIN - 16 || r > RR1) return null;
+    const m = minuteAt(p.x, p.y);
+    const thrMin = ((touch ? 22 : 12) * p.scale) / (2 * Math.PI * Math.max(r, RIN) / 1440);
+    let best = null, bestD = Infinity;
+    for(const b of boundaries()){
+      const d = Math.abs((((m - b.m + 720) % 1440) + 1440) % 1440 - 720);
+      if(d < bestD){ bestD = d; best = b; }
+    }
+    if(best && bestD <= thrMin) return {type:"handle", b:best, m};
+    if(r < RIN || r > ROUT) return null;
+    const e = entryAt(m);
+    return e ? {type:"slice", e, m} : {type:"gap", m};
+  }
+
+  // drag a boundary in 15-minute steps
+  function startDrag(b, m, pointerId){
+    const starts = b.starts.map(e => ({e, d:dur(e)}));
+    const ends = b.ends.map(e => ({e, s:e.start, d:dur(e)}));
+    const group = new Set([...b.starts, ...b.ends]);
+    let lo = -1440, hi = 1440;
+    for(const o of state.entries){
+      if(group.has(o)) continue;
+      for(const p of [o.start, clampMin(o.start + dur(o))]){
+        const fwd = (p - b.m + 1440) % 1440, bwd = (b.m - p + 1440) % 1440;
+        if(fwd > 0) hi = Math.min(hi, fwd);
+        if(bwd > 0) lo = Math.max(lo, -bwd);
+      }
+    }
+    for(const g of ends){ lo = Math.max(lo, 15 - g.d); hi = Math.min(hi, 1440 - g.d); }
+    for(const g of starts){ hi = Math.min(hi, g.d - 15); lo = Math.max(lo, -(1440 - g.d)); }
+    lo = Math.min(lo, 0); hi = Math.max(hi, 0);
+    drag = {m0:b.m, starts, ends, lo, hi, acc:0, last:m, cur:0, moved:false, pointerId};
+    closeQuick(); closePop();
+    canvas.style.cursor = "grabbing";
+    scheduleDraw();
+  }
+  function moveDrag(clientX, clientY){
+    const p = toCanvas(clientX, clientY);
+    const raw = minuteAt(p.x, p.y);
+    const diff = (((raw - drag.last + 720) % 1440) + 1440) % 1440 - 720;
+    drag.acc += diff; drag.last = raw;
+    if(!drag.moved && Math.abs(drag.acc) < 4) return;
+    drag.moved = true;
+    const snapped = Math.round((drag.m0 + drag.acc) / 15) * 15;
+    const delta = Math.max(drag.lo, Math.min(drag.hi, snapped - drag.m0));
+    if(delta === drag.cur) return;
+    drag.cur = delta;
+    for(const g of drag.ends) g.e.end = clampMin(g.s + g.d + delta);
+    for(const g of drag.starts) g.e.start = clampMin(drag.m0 + delta);
+    renderRows(); changed();
+  }
+  function endDrag(){
+    if(!drag) return;
+    drag = null; canvas.style.cursor = "";
+    suppressClick = true; setTimeout(() => { suppressClick = false; }, 120);
+    scheduleDraw();
+  }
+  // move a whole slice to change the order (mouse: drag, touch: long-press then drag)
+  function beginSliceDrag(){
+    const p = slicePress; if(!p) return;
+    clearTimeout(p.timer); slicePress = null;
+    const snap = snapshotOrder();
+    const d = dur(p.e);
+    sliceDrag = {e:p.e, snap, ids:snap.base.map(b => b.e.id), off:((p.m - p.e.start + 1440) % 1440) - d/2, pointerId:p.pointerId};
+    try{ canvas.setPointerCapture(p.pointerId); }catch(_){}
+    closeQuick(); closePop();
+    canvas.style.cursor = "grabbing";
+    if(navigator.vibrate && p.touch){ try{ navigator.vibrate(10); }catch(_){} }
+    scheduleDraw();
+  }
+  function moveSlice(clientX, clientY){
+    const sd = sliceDrag, p = toCanvas(clientX, clientY);
+    const u = x => (((x - sd.snap.origin) % 1440) + 1440) % 1440;
+    const center = u(minuteAt(p.x, p.y) - sd.off);
+    const byId = new Map(sd.snap.base.map(b => [b.e.id, b]));
+    const midOf = id => { const b = byId.get(id); return u(b.e.start) + b.d/2; };
+    let moved = false, guard = 0;
+    while(guard++ < 60){
+      const i = sd.ids.indexOf(sd.e.id);
+      let j = -1;
+      if(i > 0 && center < midOf(sd.ids[i-1])) j = i - 1;
+      else if(i < sd.ids.length - 1 && center > midOf(sd.ids[i+1])) j = i + 1;
+      if(j < 0) break;
+      [sd.ids[i], sd.ids[j]] = [sd.ids[j], sd.ids[i]];
+      applyOrder(sd.ids, sd.snap); moved = true;
+    }
+    if(moved){ renderRows(); changed(); }
+  }
+  function endSlice(){
+    if(slicePress){ clearTimeout(slicePress.timer); slicePress = null; }
+    if(!sliceDrag) return;
+    sliceDrag = null; canvas.style.cursor = "";
+    suppressClick = true; setTimeout(() => { suppressClick = false; }, 120);
+    renderRows(); changed();
+  }
+
+  canvas.addEventListener("pointerdown", ev => {
+    if(ev.button !== 0) return;
+    const h = hitTest(ev.clientX, ev.clientY, ev.pointerType !== "mouse");
+    if(h && h.type === "handle"){
+      ev.preventDefault();
+      try{ canvas.setPointerCapture(ev.pointerId); }catch(_){}
+      startDrag(h.b, h.m, ev.pointerId);
+    } else if(h && h.type === "slice"){
+      const touch = ev.pointerType !== "mouse";
+      slicePress = {e:h.e, m:h.m, x:ev.clientX, y:ev.clientY, pointerId:ev.pointerId, touch, timer:0};
+      if(touch) slicePress.timer = setTimeout(beginSliceDrag, 350);
+    }
+  });
+  canvas.addEventListener("pointermove", ev => {
+    if(drag){ if(ev.pointerId === drag.pointerId) moveDrag(ev.clientX, ev.clientY); return; }
+    if(sliceDrag){ if(ev.pointerId === sliceDrag.pointerId) moveSlice(ev.clientX, ev.clientY); return; }
+    if(slicePress && ev.pointerId === slicePress.pointerId){
+      if(Math.hypot(ev.clientX - slicePress.x, ev.clientY - slicePress.y) > 8){
+        if(slicePress.touch){ clearTimeout(slicePress.timer); slicePress = null; }   // finger moved first: let the page scroll
+        else { beginSliceDrag(); moveSlice(ev.clientX, ev.clientY); }
+      }
+      return;
+    }
+    if(ev.pointerType === "mouse"){
+      const h = hitTest(ev.clientX, ev.clientY, false);
+      canvas.style.cursor = !h ? "" : h.type === "gap" ? "pointer" : "grab";
+    }
+  });
+  const endAll = () => { endDrag(); endSlice(); };
+  canvas.addEventListener("pointerup", endAll);
+  canvas.addEventListener("pointercancel", endAll);
+  canvas.addEventListener("lostpointercapture", endAll);
+  canvas.addEventListener("touchmove", ev => { if(drag || sliceDrag) ev.preventDefault(); }, {passive:false});
+  canvas.addEventListener("touchstart", ev => {
+    const t = ev.touches[0]; if(!t || ev.touches.length > 1) return;
+    const h = hitTest(t.clientX, t.clientY, true);
+    if(h && h.type === "handle") ev.preventDefault();
+  }, {passive:false});
+
+  // tap an empty part of the ring to add
+  function gapAround(m){
+    const mark = markArray(); const i0 = Math.floor(m) % 1440;
+    if(mark[i0]) return null;
+    let back = 0; while(back < 1440 && !mark[(i0 - back - 1 + 2880) % 1440]) back++;
+    if(back >= 1440) return {gs:0, glen:1440, off:i0};
+    const gs = (i0 - back + 1440) % 1440;
+    let glen = 0; while(glen < 1440 && !mark[(gs + glen) % 1440]) glen++;
+    return {gs, glen, off:back};
+  }
+  function blockFor(m){
+    const g = gapAround(m); if(!g) return null;
+    if(g.glen <= 180) return {start:g.gs, end:clampMin(g.gs + g.glen)};
+    const len = 60;
+    let s = Math.floor((g.gs + g.off) / 15) * 15 - g.gs;
+    s = Math.max(0, Math.min(g.glen - len, s));
+    return {start:clampMin(g.gs + s), end:clampMin(g.gs + s + len)};
+  }
+  function openQuick(m, clientX, clientY){
+    const blk = blockFor(m); if(!blk){ closeQuick(); return; }
+    pendingGap = blk;
+    quickTitle.textContent = `${hmm(blk.start)}〜${hmm(blk.end)} に追加`;
+    quickPop.hidden = false;
+    const pr = quickPop.getBoundingClientRect();
+    const left = Math.max(12, Math.min(clientX - pr.width/2, window.innerWidth - pr.width - 12));
+    let top = clientY + 14;
+    if(top + pr.height > window.innerHeight - 12) top = Math.max(12, clientY - pr.height - 14);
+    quickPop.style.left = left + "px"; quickPop.style.top = top + "px";
+    const first = quickChips.querySelector("button"); if(first) first.focus({preventScroll:true});
+    scheduleDraw();
+  }
+  function closeQuick(){ if(quickPop.hidden) return; quickPop.hidden = true; pendingGap = null; scheduleDraw(); }
+  [...PRESETS, {label:"", color:""}].forEach(p => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "chip" + (p.label ? "" : " add");
+    if(p.label){ const i = document.createElement("i"); i.style.background = p.color; b.append(i, p.label); }
+    else b.textContent = "＋ 自由に";
+    b.addEventListener("click", () => {
+      if(!pendingGap) return;
+      const e = {id:newId(), label:p.label, start:pendingGap.start, end:pendingGap.end, color:colorFor(p.label)};
+      state.entries.push(e); closeQuick(); renderRows(); changed();
+      if(!p.label){
+        const li = rowsEl.querySelector(`[data-id="${e.id}"]`); const inp = li && li.querySelector("input[type=text]");
+        if(inp) inp.focus();
+      } else toast(`「${p.label}」を追加しました`);
+    });
+    quickChips.append(b);
+  });
+  function focusRow(e){
+    const li = rowsEl.querySelector(`[data-id="${e.id}"]`); if(!li) return;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    li.scrollIntoView({block:"center", behavior: reduce ? "auto" : "smooth"});
+    li.classList.add("flash"); setTimeout(() => li.classList.remove("flash"), 1200);
+  }
+  canvas.addEventListener("click", ev => {
+    if(suppressClick){ suppressClick = false; return; }
+    const h = hitTest(ev.clientX, ev.clientY, false);
+    if(!h){ closeQuick(); return; }
+    if(h.type === "gap") openQuick(h.m, ev.clientX, ev.clientY);
+    else if(h.type === "slice"){ closeQuick(); focusRow(h.e); }
+  });
+  document.addEventListener("click", ev => { if(!quickPop.hidden && !quickPop.contains(ev.target) && ev.target !== canvas) closeQuick(); });
+  document.addEventListener("keydown", ev => { if(ev.key === "Escape") closeQuick(); });
+  window.addEventListener("scroll", () => closeQuick(), {passive:true});
+
+  // ---------- start ----------
+  document.getElementById("frameNote").hidden = !FRAMED;
+  window.addEventListener("hashchange", () => {
+    const s = readHash(); if(!s) return;
+    state = s; viewingShared = true; refreshAll(); toast("共有された予定を読み込みました");
+  });
+  renderRows();
+  updateXLink();
+  banner.hidden = !viewingShared;
+  draw();
+  ensureFonts();
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleDraw);
+})();
+</script>
+</body>
+</html>
