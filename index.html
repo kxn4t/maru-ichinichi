@@ -198,6 +198,18 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
 .theme-switch{margin-left:auto; align-self:center}
 .theme-switch button{width:34px; height:30px; padding:0; display:inline-flex; align-items:center; justify-content:center}
 .theme-switch svg{width:18px; height:18px; display:block}
+.days-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:0 2px 8px}
+.days-head h2{font-size:1rem; margin:0}
+.day-actions{display:flex; gap:4px}
+.days{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px}
+.day-chip{
+  font:inherit; font-size:.88rem; border:1.5px solid var(--line); background:transparent; color:var(--ink);
+  padding:.4em .95em; border-radius:999px; cursor:pointer; max-width:14em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.day-chip[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.day-chip.new{border-style:dashed; color:var(--muted)}
+.day-chip:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+.linkish:disabled{opacity:.4; cursor:default; text-decoration:none}
 .sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
 </style>
 </head>
@@ -243,11 +255,19 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
     </section>
 
     <section class="panel" aria-label="入力">
+      <div class="days-head">
+        <h2 id="daysLabel">いちにち</h2>
+        <div class="day-actions">
+          <button class="linkish" id="dupDay" type="button">複製</button>
+          <button class="linkish" id="delDay" type="button">削除</button>
+        </div>
+      </div>
+      <div class="days" id="days" role="group" aria-labelledby="daysLabel"></div>
       <div class="banner" id="sharedBanner" hidden>
         <p>共有された予定を表示しています。ここで編集しても、あなたの保存データは変わりません。</p>
         <div class="actions">
-          <button class="btn small" id="adoptShared" type="button">これを自分の予定にする</button>
-          <button class="btn small" id="backToMine" type="button">自分の予定に戻す</button>
+          <button class="btn small" id="adoptShared" type="button">自分のいちにちに追加</button>
+          <button class="btn small" id="backToMine" type="button">自分のいちにちに戻る</button>
         </div>
       </div>
       <label class="field"><span>名前・タイトル</span>
@@ -354,26 +374,41 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
 
   let uid = 1;
   const newId = () => "e" + (uid++);
-  const freshState = () => ({title:"", subtitle:"", card:"auto", entries: SAMPLE.map(e => ({...e, id:newId()}))});
+  const dayId = () => "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const freshState = (withSample) => ({id:dayId(), title:"", subtitle:"", card:"auto", entries: withSample ? SAMPLE.map(e => ({...e, id:newId()})) : []});
   let viewingShared = false;
-  let state = load() || freshState();
+  // several saved days; `state` is the one being shown (or a shared one that isn't saved)
+  const stored = loadStore();
+  let days = stored ? stored.days : [freshState(true)];
+  let currentId = (stored && days.some(d => d.id === stored.current)) ? stored.current : days[0].id;
+  let state = days.find(d => d.id === currentId);
   const fromHash = readHash();
   if(fromHash){ state = fromHash; viewingShared = true; }
+  days.forEach(d => d.entries.forEach(e => { if(!e.id) e.id = newId(); }));
   state.entries.forEach(e => { if(!e.id) e.id = newId(); });
 
   // ---------- storage ----------
-  function load(){
+  function sanitizeDay(s, legacy){
+    if(!s || !Array.isArray(s.entries)) return null;
+    const d = {id: typeof s.id === "string" && s.id ? s.id : dayId()};
+    d.entries = s.entries.filter(e => e && Number.isFinite(e.start) && Number.isFinite(e.end))
+      .map(e => ({label:String(e.label||""), start:clampMin(e.start), end:clampMin(e.end), color:String(e.color||PALETTE[0])}));
+    d.title = String(s.title||""); d.subtitle = String(s.subtitle||"");
+    d.card = ["auto", "day", "night"].includes(s.card) ? s.card : "auto";
+    if(legacy && s.v !== 2 && d.card === "day") d.card = "auto";   // 「昼」が初期値だった頃の保存データ
+    return d;
+  }
+  function loadStore(){
     try{
       const raw = localStorage.getItem(STORE_KEY);
       if(!raw) return null;
       const s = JSON.parse(raw);
-      if(!s || !Array.isArray(s.entries)) return null;
-      s.entries = s.entries.filter(e => Number.isFinite(e.start) && Number.isFinite(e.end))
-        .map(e => ({label:String(e.label||""), start:clampMin(e.start), end:clampMin(e.end), color:String(e.color||PALETTE[0])}));
-      s.title = String(s.title||""); s.subtitle = String(s.subtitle||"");
-      s.card = ["auto", "day", "night"].includes(s.card) ? s.card : "auto";
-      if(s.v !== 2 && s.card === "day") s.card = "auto";   // 「昼」が初期値だった頃の保存データ
-      return s;
+      if(s && Array.isArray(s.days)){
+        const list = s.days.map(d => sanitizeDay(d, false)).filter(Boolean);
+        return list.length ? {days:list, current:String(s.current||"")} : null;
+      }
+      const one = sanitizeDay(s, true);   // ひとつだけ保存していた頃のデータ
+      return one ? {days:[one], current:one.id} : null;
     }catch(_){ return null; }
   }
   // ---------- share encoding ----------
@@ -419,8 +454,8 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try{
-        const out = {v:2, title:state.title, subtitle:state.subtitle, card:state.card,
-          entries: state.entries.map(({label,start,end,color}) => ({label,start,end,color}))};
+        const out = {v:3, current:currentId, days: days.map(d => ({id:d.id, title:d.title, subtitle:d.subtitle, card:d.card,
+          entries: d.entries.map(({label,start,end,color}) => ({label,start,end,color}))}))};
         localStorage.setItem(STORE_KEY, JSON.stringify(out));
       }catch(_){}
     }, 250);
@@ -789,7 +824,7 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   // title, subtitle, card theme
   const titleEl = document.getElementById("title"), subEl = document.getElementById("subtitle");
   titleEl.value = state.title; subEl.value = state.subtitle;
-  titleEl.addEventListener("input", () => { state.title = titleEl.value; changed(); });
+  titleEl.addEventListener("input", () => { state.title = titleEl.value; changed(); renderDays(); });
   subEl.addEventListener("input", () => { state.subtitle = subEl.value; changed(); });
   const segBtns = document.querySelectorAll("[data-card]");
   function syncSeg(){ segBtns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.card === state.card))); }
@@ -887,13 +922,74 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
   function refreshAll(){
     titleEl.value = state.title; subEl.value = state.subtitle; syncSeg(); renderRows(); changed();
     banner.hidden = !viewingShared;
+    renderDays();
   }
   function clearHash(){ try{ if(location.hash) history.replaceState(null, "", location.href.split("#")[0]); }catch(_){} }
   document.getElementById("adoptShared").addEventListener("click", () => {
-    viewingShared = false; banner.hidden = true; persist(); clearHash(); toast("自分の予定として保存しました");
+    state.id = dayId(); days.push(state); currentId = state.id;
+    viewingShared = false; clearHash(); refreshAll(); persist(); toast("自分のいちにちに追加しました");
   });
   document.getElementById("backToMine").addEventListener("click", () => {
-    viewingShared = false; state = load() || freshState(); clearHash(); refreshAll(); toast("自分の予定に戻しました");
+    switchDay(currentId); toast("自分のいちにちに戻りました");
+  });
+
+  // ---------- several days ----------
+  const daysEl = document.getElementById("days"), dupBtn = document.getElementById("dupDay"), delBtn = document.getElementById("delDay");
+  const dayName = (d, i) => d.title.trim() || `いちにち ${i + 1}`;
+  function renderDays(){
+    daysEl.innerHTML = "";
+    days.forEach((d, i) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "day-chip";
+      b.textContent = dayName(d, i); b.title = dayName(d, i);
+      b.setAttribute("aria-pressed", String(!viewingShared && d.id === currentId));
+      b.addEventListener("click", () => {
+        if(!viewingShared && d.id === currentId) return;
+        switchDay(d.id);
+        const nb = daysEl.querySelectorAll(".day-chip")[days.indexOf(d)]; if(nb) nb.focus();
+      });
+      daysEl.append(b);
+    });
+    const add = document.createElement("button"); add.type = "button"; add.className = "day-chip new";
+    add.textContent = "＋ 新しく作る";
+    add.addEventListener("click", newDay);
+    daysEl.append(add);
+    delBtn.disabled = viewingShared || days.length <= 1;
+    resetDelete();
+  }
+  function switchDay(id){
+    const d = days.find(x => x.id === id); if(!d) return;
+    viewingShared = false; clearHash();
+    currentId = id; state = d;
+    closePop(); closeQuick();
+    refreshAll(); persist();
+  }
+  function newDay(){
+    if(days.length >= 50){ toast("保存できるのは50件までです"); return; }
+    const d = freshState(false); days.push(d); switchDay(d.id);
+    titleEl.focus(); toast("新しいいちにちを作りました");
+  }
+  dupBtn.addEventListener("click", () => {
+    if(days.length >= 50){ toast("保存できるのは50件までです"); return; }
+    const src = state;
+    const d = {id:dayId(), title:((src.title.trim() || "わたしの一日") + "（コピー）").slice(0, 40), subtitle:src.subtitle, card:src.card,
+      entries: src.entries.map(e => ({...e, id:newId()}))};
+    days.splice(viewingShared ? days.length : days.indexOf(src) + 1, 0, d);
+    switchDay(d.id); toast("複製しました");
+  });
+  let delArmed = 0;
+  function resetDelete(){ if(delArmed){ clearTimeout(delArmed); delArmed = 0; } delBtn.textContent = "削除"; }
+  delBtn.addEventListener("click", () => {
+    if(viewingShared || days.length <= 1) return;
+    if(!delArmed){
+      delBtn.textContent = "もう一度押すと削除";
+      delArmed = setTimeout(resetDelete, 3000);
+      return;
+    }
+    const i = days.findIndex(d => d.id === currentId);
+    const name = dayName(days[i], i);
+    days.splice(i, 1);
+    switchDay(days[Math.max(0, i - 1)].id);
+    toast(`「${name}」を削除しました`);
   });
 
   const shareModal = document.getElementById("shareModal"), shareOut = document.getElementById("shareOut"),
@@ -1287,6 +1383,7 @@ textarea:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
     state = s; viewingShared = true; refreshAll(); toast("共有された予定を読み込みました");
   });
   renderRows();
+  renderDays();
   updateXLink();
   banner.hidden = !viewingShared;
   draw();
